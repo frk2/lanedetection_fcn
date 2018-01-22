@@ -11,7 +11,7 @@ import tensorflow as tf
 from glob import glob
 from urllib.request import urlretrieve
 from tqdm import tqdm
-
+from moviepy.editor import VideoClip
 
 class DLProgress(tqdm):
     last_block = 0
@@ -72,24 +72,31 @@ def gen_batch_function(data_folder, image_shape):
         :param batch_size: Batch Size
         :return: Batches of training data
         """
-        image_paths = glob(os.path.join(data_folder, 'data', '*'))
+        image_paths = list(set(glob(os.path.join(data_folder, 'data', '*'))))
         label_paths = {
             os.path.basename(path): path
             for path in glob(os.path.join(data_folder, 'annotated', '*'))}
 
+        filter_images = []
+        for image in image_paths:
+            if os.path.basename(image) in label_paths.keys():
+                filter_images.append(image)
+
+        image_paths = filter_images
+
         # this is a hack for the output received by our JS annotator, but since we have < 10 labels, its all coo!
         background_color = [0,0,0,255]
-        print(label_paths)
+
+        print("happening with {} images and {} labels".format(len(image_paths), len(label_paths)))
 
         random.shuffle(image_paths)
-        print("happening with {} images".format(len(image_paths)))
         for batch_i in range(0, len(image_paths), batch_size):
             should_flip = np.random.randint(2) == 1
             images = []
             gt_images = []
             for image_file in image_paths[batch_i:batch_i+batch_size]:
                 if os.path.basename(image_file) not in label_paths:
-                    print("Cannot find annotation for {}, skipping".format(image_file))
+                    # print("Cannot find annotation for {}, skipping".format(image_file))
                     continue
                 gt_image_file = label_paths[os.path.basename(image_file)]
 
@@ -122,7 +129,7 @@ def gen_test_output(sess, logits, keep_prob, image_pl, data_folder, image_shape)
     :param image_shape: Tuple - Shape of image
     :return: Output for for each test image
     """
-    for image_file in glob(os.path.join(data_folder, 'image_2', '*.png')):
+    for image_file in glob(os.path.join(data_folder, '*')):
         image = scipy.misc.imresize(scipy.misc.imread(image_file), image_shape)
 
         im_softmax = sess.run(
@@ -137,6 +144,12 @@ def gen_test_output(sess, logits, keep_prob, image_pl, data_folder, image_shape)
 
         yield os.path.basename(image_file), np.array(street_im)
 
+def next_gen(generator):
+
+    def gen(t):
+        return next(generator)[1]
+
+    return gen
 
 def save_inference_samples(runs_dir, data_dir, sess, image_shape, logits, keep_prob, input_image):
     # Make folder for current run
@@ -147,7 +160,10 @@ def save_inference_samples(runs_dir, data_dir, sess, image_shape, logits, keep_p
 
     # Run NN on test images and save them to HD
     print('Training Finished. Saving test images to: {}'.format(output_dir))
+    total_images = len(glob(os.path.join(data_dir, 'data', '*')))
     image_outputs = gen_test_output(
-        sess, logits, keep_prob, input_image, os.path.join(data_dir, 'data_road/testing'), image_shape)
-    for name, image in image_outputs:
-        scipy.misc.imsave(os.path.join(output_dir, name), image)
+        sess, logits, keep_prob, input_image, os.path.join(data_dir, 'data'), image_shape)
+    clip1 =  VideoClip(next_gen(image_outputs), duration= total_images/10)
+    clip1.write_videofile(os.path.join(output_dir, "video.mp4"), audio=False, fps=10)
+    # for name, image in image_outputs:
+    #     scipy.misc.imsave(os.path.join(output_dir, name), image)

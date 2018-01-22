@@ -163,10 +163,10 @@ def run():
     image_shape = (160, 576)
     data_dir = './data'
     runs_dir = './runs'
-    tests.test_for_kitti_dataset(data_dir)
 
     # Download pretrained vgg model
     helper.maybe_download_pretrained_vgg(data_dir)
+    # tests.test_for_kitti_dataset(data_dir)
 
     # OPTIONAL: Train and Inference on the cityscapes dataset instead of the Kitti dataset.
     # You'll need a GPU with at least 10 teraFLOPS to train on.
@@ -177,14 +177,15 @@ def run():
         # Path to vgg model
         vgg_path = os.path.join(data_dir, 'vgg')
         # Create function to get batches
-        get_batches_fn = helper.gen_batch_function(os.path.join(data_dir, 'data_road/training'), image_shape)
+        images_dir = "/home/faraz/Code/donkey_data/diytrack_may_11am"
+        get_batches_fn = helper.gen_batch_function(images_dir, image_shape)
         input, keep_prob, layer3, layer4, layer7 =  load_vgg(sess, vgg_path)
         output = layers(layer3, layer4, layer7, num_classes)
         logits, train_op, cle = optimize(output, correct_label, 0.0001, num_classes)
         saver = tf.train.Saver()
-        train_nn(sess, 50, 16, get_batches_fn, train_op, cle, input, correct_label, keep_prob, 0.001)
-        saver.save(sess,'out')
-        helper.save_inference_samples(runs_dir, data_dir, sess, image_shape, logits, keep_prob, input)
+        train_nn(sess, 15, 16, get_batches_fn, train_op, cle, input, correct_label, keep_prob, 0.001)
+        saver.save(sess,'./out')
+        helper.save_inference_samples(runs_dir, images_dir, sess, image_shape, logits, keep_prob, input)
         # OPTIONAL: Augment Images for better results
         #  https://datascience.stackexchange.com/questions/5224/how-to-prepare-augment-images-for-neural-network
 
